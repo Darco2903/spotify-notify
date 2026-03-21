@@ -1,6 +1,14 @@
-import { API_ORIGIN, apiFetch } from "./core.js";
-import type { PlaylistLight, PlaylistTracks, TrackLight, User } from "./types/index.js";
-import { playlistToPlaylistLight, trackToTrackLight } from "./utils.js";
+import { ok, okAsync, type Result, ResultAsync } from "neverthrow";
+import { API_ORIGIN, apiFetch, type ApiFetchError } from "./core.js";
+import {
+    PlaylistItemsLightSchema,
+    PlaylistLightSchema,
+    UserSchema,
+    type PlaylistLight,
+    type PlaylistItemsLight,
+    type TrackLight,
+    type User,
+} from "./types/index.js";
 
 const LIMIT = 50;
 
@@ -9,40 +17,61 @@ type PlaylistTrackProgress = {
     total: number;
 };
 
-export async function fetchPlaylist(playlistId: string): Promise<PlaylistLight> {
-    return apiFetch(`/playlists/${playlistId}`).then(playlistToPlaylistLight);
+export function fetchPlaylist(playlistId: string): ResultAsync<PlaylistLight, ApiFetchError> {
+    return apiFetch(`/playlists/${playlistId}`, PlaylistLightSchema);
 }
 
-// export async function fetchPlaylistTracks(playlistId: string, offset: number, limit: number): Promise<PlaylistTracks> {
-//     return apiFetch(`/playlists/${playlistId}/tracks?offset=${Math.max(offset, 0)}&limit=${Math.min(limit, LIMIT)}&locale=*`);
+// export function fetchPlaylistTracks(playlistId: string, offset: number, limit: number): ResultAsync<PlaylistItemsLight, ApiFetchError> {
+//     return apiFetch(
+//         `/playlists/${playlistId}/tracks?offset=${Math.max(offset, 0)}&limit=${Math.min(limit, LIMIT)}&locale=*`,
+//         PlaylistItemsLightSchema,
+//     );
 // }
 
-export async function fetchPlaylistTracksFull(
+export function fetchPlaylistTracksFull(
     playlist: PlaylistLight,
-    progressCallback: (progress: PlaylistTrackProgress) => void = () => {}
-): Promise<TrackLight[]> {
-    let res: PlaylistTracks;
-    let url: string | null = `/playlists/${playlist.id}/tracks?limit=${LIMIT}&locale=*`;
-    let list: TrackLight[] = [];
+    progressCallback: (progress: PlaylistTrackProgress) => void = () => {},
+): ResultAsync<TrackLight[], ApiFetchError> {
+    return ResultAsync.fromPromise(
+        (async () => {
+            let url: string | null = `/playlists/${playlist.id}/items?limit=${LIMIT}&locale=*`;
+            const list: TrackLight[] = [];
+            const numberOfFetches = Math.ceil(playlist.items.total / LIMIT);
 
-    const numberOfFetches = Math.ceil(playlist.tracks.total / LIMIT);
+            let i = 0;
+            do {
+                i++;
 
-    let i = 0;
-    do {
-        i++;
-        // console.log(`[${++i}] Fetching playlist tracks from ${url}`);
-        res = await apiFetch(url);
-        url = res.next?.replace(API_ORIGIN, "") || null;
-        list.push(...res.items.map(trackToTrackLight));
-        progressCallback({
-            current: i,
-            total: numberOfFetches,
-        });
-    } while (url);
+                // console.log(`[${++i}] Fetching playlist tracks from ${url}`);
+                const res: Result<PlaylistItemsLight, ApiFetchError> = await apiFetch(url, PlaylistItemsLightSchema);
+                if (res.isOk()) {
+                    url = res.value.next === null ? null : res.value.next.replace(API_ORIGIN, "");
+                    list.push(...res.value.items);
+                    progressCallback({
+                        current: i,
+                        total: numberOfFetches,
+                    });
+                } else {
+                    throw res.error;
+                }
+            } while (url !== null);
 
-    return list;
+            return list;
+        })(),
+        (e) => e as ApiFetchError,
+    );
 }
 
-export async function fetchUser(userId: string): Promise<User> {
-    return apiFetch(`/users/${userId}`);
+function getUserUrl(userId: string): string {
+    return `https://open.spotify.com/user/${userId}`;
+}
+
+export function fetchUser(userId: string): ResultAsync<User, ApiFetchError> {
+    // return apiFetch(`/users/${userId}`, UserSchema);
+    return okAsync({
+        display_name: userId,
+        external_urls: {
+            spotify: getUserUrl(userId),
+        },
+    });
 }

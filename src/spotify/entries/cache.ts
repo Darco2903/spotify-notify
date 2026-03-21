@@ -1,6 +1,8 @@
+import type { ResultAsync } from "neverthrow";
+import type { ApiFetchError } from "../api/core.js";
 import { CacheEntry } from "./CacheEntry.js";
 import type { PlaylistLight } from "../api/types/index.js";
-import { fetchPlaylistTracksFull } from "../api/endpoints.js";
+import { fetchPlaylistTracksFull as fetchPlaylistItemsFull } from "../api/endpoints.js";
 import { logInfo } from "../../logger.js";
 
 export class Cache {
@@ -10,53 +12,56 @@ export class Cache {
         this.cache = new Map();
     }
 
-    async load(channelID: string, playlistID: string): Promise<boolean> {
-        const entry = await CacheEntry.loadFromFile(channelID, playlistID);
+    async load(channelId: string, playlistId: string): Promise<boolean> {
+        const entry = await CacheEntry.loadFromFile(channelId, playlistId);
         // console.log("CacheEntry loaded:", !!entry);
         if (entry) {
-            this.cache.set(playlistID, entry);
+            this.cache.set(playlistId, entry);
             return true;
         }
         return false;
     }
 
-    get(playlistID: string): CacheEntry | undefined {
-        return this.cache.get(playlistID);
+    get(playlistId: string): CacheEntry | undefined {
+        return this.cache.get(playlistId);
     }
 
-    async set(channelID: string, playlist: PlaylistLight): Promise<CacheEntry> {
-        const tracks = await fetchPlaylistTracksFull(playlist, (progress) => {
+    set(channelId: string, playlist: PlaylistLight): ResultAsync<CacheEntry, ApiFetchError> {
+        return fetchPlaylistItemsFull(playlist, (progress) => {
             logInfo(
                 `${"Fetching tracks:".cyan} ${progress.current.toString().padStart(progress.total.toString().length, "0").green}/${
                     progress.total.toString().yellow
-                }`
+                }`,
             );
+        }).map((items) => {
+            const entry = new CacheEntry(channelId, playlist, items);
+            this.cache.set(playlist.id, entry);
+            // console.log("number of entries in cache:", this.cache.size);
+            return entry;
         });
-
-        const entry = new CacheEntry(channelID, playlist, tracks);
-        this.cache.set(playlist.id, entry);
-        // console.log("number of entries in cache:", this.cache.size);
-        return entry;
     }
 
-    async update(playlist: PlaylistLight): Promise<CacheEntry | undefined> {
-        const tracks = await fetchPlaylistTracksFull(playlist, (progress) => {
+    update(playlist: PlaylistLight): ResultAsync<CacheEntry | null, ApiFetchError> {
+        return fetchPlaylistItemsFull(playlist, (progress) => {
             logInfo(
                 `${"Fetching tracks:".cyan} ${progress.current.toString().padStart(progress.total.toString().length, "0").green}/${
                     progress.total.toString().yellow
-                }`
+                }`,
             );
+        }).map((items) => {
+            const entry = this.cache.get(playlist.id);
+            if (entry === undefined) {
+                return null;
+            }
+            // console.log("cache found:", !!entry);
+            entry.update(playlist, items);
+            return entry;
         });
-
-        const entry = this.cache.get(playlist.id);
-        // console.log("cache found:", !!entry);
-        entry?.update(playlist, tracks);
-        return entry;
     }
 
-    // async updateLazy(playlistID: string, playlist: PlaylistLight): Promise<CacheEntry | undefined> {
+    // async updateLazy(playlistId: string, playlist: PlaylistLight): Promise<CacheEntry | undefined> {
     //     let tracks: TrackLight[] = [];
-    //     const entry = this.cache.get(playlistID);
+    //     const entry = this.cache.get(playlistId);
 
     //     if (entry) {
     //         const cacheTracks = entry.getTracks();
@@ -66,7 +71,7 @@ export class Cache {
     //         while (index > 0) {
     //             const limit = Math.min(50, index);
     //             index -= limit;
-    //             const r = await fetchPlaylistTracks(playlistID, index, limit);
+    //             const r = await fetchPlaylistTracks(playlistId, index, limit);
     //             const tr = r.items.map(trackToTrackLight);
 
     //             let stop = false;
@@ -93,7 +98,7 @@ export class Cache {
 
     //         // console.log("cache found:", !!entry);
     //         const newTracks = cacheTracks.slice(0, index + i + 1).concat(tracks);
-    //         console.log(`Updating cache entry for playlist ${playlistID} with ${newTracks.length} total tracks.`);
+    //         console.log(`Updating cache entry for playlist ${playlistId} with ${newTracks.length} total tracks.`);
     //         entry.update(playlist, newTracks);
     //     }
     //     return entry;

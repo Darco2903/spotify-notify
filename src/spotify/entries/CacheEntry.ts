@@ -1,12 +1,12 @@
 import fs from "fs";
 import path from "path";
 import { exists } from "../../utils.js";
-import type {  PlaylistLight, TrackLight } from "../api/types/index.js";
+import type { PlaylistLight, TrackLight } from "../api/types/index.js";
 
-import config from "../../../config.json" with { type: "json" };
+import { config } from "../../config.js";
 
 export class CacheEntry {
-    protected channelID: string;
+    protected channelId: string;
     protected playlist: PlaylistLight;
     protected lastPlaylist: PlaylistLight;
     protected tracks: TrackLight[];
@@ -14,23 +14,23 @@ export class CacheEntry {
     protected lastSnapshotId: string;
     protected snapshotIdle: number;
 
-    static getFilePath(playlistID: string): string {
-        return path.join(config.cache.path, `${playlistID}.json`);
+    static getFilePath(playlistId: string): string {
+        return path.join(config.cache.path, `${playlistId}.json`);
     }
 
-    static async loadFromFile(channelID: string, playlistID: string): Promise<CacheEntry | null> {
-        const filePath = CacheEntry.getFilePath(playlistID);
+    static async loadFromFile(channelId: string, playlistId: string): Promise<CacheEntry | null> {
+        const filePath = CacheEntry.getFilePath(playlistId);
         let entry = null;
         if (await exists(filePath)) {
             const data = await fs.promises.readFile(filePath, "utf-8");
             const parsed = JSON.parse(data);
-            entry = new CacheEntry(channelID, parsed.playlist, parsed.tracks);
+            entry = new CacheEntry(channelId, parsed.playlist, parsed.tracks);
         }
         return entry;
     }
 
-    constructor(channelID: string, playlist: PlaylistLight, tracks: TrackLight[]) {
-        this.channelID = channelID;
+    constructor(channelId: string, playlist: PlaylistLight, tracks: TrackLight[]) {
+        this.channelId = channelId;
         this.playlist = playlist;
         this.lastPlaylist = playlist;
         this.tracks = tracks;
@@ -65,11 +65,11 @@ export class CacheEntry {
     }
 
     getTrackCount(): number {
-        return this.playlist.tracks.total;
+        return this.playlist.items.total;
     }
 
     getLastTrackCount(): number {
-        return this.lastPlaylist.tracks.total;
+        return this.lastPlaylist.items.total;
     }
 
     getSnapshotId(): string {
@@ -90,10 +90,10 @@ export class CacheEntry {
 
     checkDiff(): [TrackLight, number][] {
         const diff: [TrackLight, number][] = [];
-        const lastTrackIds = new Set(this.lastTracks.map((track) => track.track.id));
+        const lastTrackIds = new Set(this.lastTracks.map((track) => track.item.id));
         for (let i = 0; i < this.tracks.length; i++) {
             const track = this.tracks[i];
-            if (!lastTrackIds.has(track.track.id)) {
+            if (!lastTrackIds.has(track.item.id)) {
                 diff.push([track, i]);
             }
         }

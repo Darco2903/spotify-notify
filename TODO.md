@@ -1,2 +1,3 @@
--   [x] rework cache (keep only necessary data)
--   [x] fetch tracks with progress
+- [x] rework cache (keep only necessary data)
+- [x] fetch tracks with progress
+- [ ] rework playlist update fetch (sort by add date, fetch only new tracks)

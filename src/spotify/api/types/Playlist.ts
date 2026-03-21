@@ -1,60 +1,22 @@
-import type { TrackLight } from "./Track.js";
+import z from "zod";
+import { PlaylistItemsLightSchema } from "./PlaylistItems.js";
 
-export type PlaylistLight = {
-    name: string;
-    description: string;
-    external_urls: {
-        spotify: string;
-    };
-    id: string;
-    images: {
-        url: string;
-        height: number;
-        width: number;
-    }[];
-    tracks: {
-        total: number;
-    };
-    snapshot_id: string;
-};
+export const PlaylistLightSchema = z.object({
+    name: z.string(),
+    description: z.string(),
+    external_urls: z.object({
+        spotify: z.url(),
+    }),
+    id: z.string(),
+    images: z.array(
+        z.object({
+            url: z.url(),
+            height: z.number(),
+            width: z.number(),
+        }),
+    ),
+    items: PlaylistItemsLightSchema,
+    snapshot_id: z.string(),
+});
 
-export type Playlist = {
-    collaborative: false;
-    description: string;
-    external_urls: {
-        spotify: string;
-    };
-    href: string;
-    id: string;
-    images: [
-        {
-            url: string;
-            height: number;
-            width: number;
-        }
-    ];
-    name: string;
-    owner: {
-        external_urls: {
-            spotify: string;
-        };
-        href: string;
-        id: string;
-        type: string;
-        uri: string;
-        display_name: string;
-    };
-    public: false;
-    snapshot_id: string;
-    tracks: {
-        href: string;
-        limit: number;
-        next: string;
-        offset: number;
-        previous: string;
-        total: number;
-        items: TrackLight[];
-    };
-    type: string;
-    uri: string;
-};
+export type PlaylistLight = z.infer<typeof PlaylistLightSchema>;

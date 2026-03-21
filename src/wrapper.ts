@@ -1,7 +1,7 @@
 import { Client, Events, GatewayIntentBits } from "discord.js";
 import { logInfo, logNewLine } from "./logger.js";
 
-import config from "../config.json" with { type: "json" };
+import { config } from "./config.js";
 
 export default class ClientWrapper<T extends boolean> extends Client<T> {
     protected busy: boolean;

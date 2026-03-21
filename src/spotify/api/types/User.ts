@@ -1,21 +1,25 @@
-export type User = {
-    display_name: string;
-    external_urls: {
-        spotify: string;
-    };
-    followers: {
-        href: string;
-        total: number;
-    };
-    href: string;
-    id: string;
-    images: [
-        {
-            url: string;
-            height: number;
-            width: number;
-        }
-    ];
-    type: "user";
-    uri: string;
-};
+import z from "zod";
+
+export const UserSchema = z.object({
+    display_name: z.string(),
+    external_urls: z.object({
+        spotify: z.url(),
+    }),
+    // followers: z.object({
+    //     href: z.url(),
+    //     total: z.number(),
+    // }),
+    // href: z.string().url(),
+    // id: z.string(),
+    // images: z.array(
+    //     z.object({
+    //         url: z.url(),
+    //         height: z.number(),
+    //         width: z.number(),
+    //     }),
+    // ),
+    // type: z.literal("user"),
+    // uri: z.string(),
+});
+
+export type User = z.infer<typeof UserSchema>;

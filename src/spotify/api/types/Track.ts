@@ -1,122 +1,35 @@
-export type TrackLight = {
-    added_at: string;
-    added_by: {
-        id: string;
-    };
-    track: {
-        id: string;
-        album: {
-            images: [
-                {
-                    url: string;
-                    height: number;
-                    width: number;
-                }
-            ];
-        };
-        external_urls: {
-            spotify: string;
-        };
-        duration_ms: number;
-        name: string;
-        artists: [
-            {
-                external_urls: {
-                    spotify: string;
-                };
-                name: string;
-            }
-        ];
-    };
-};
+import z from "zod";
 
-export type Track = {
-    added_at: string;
-    added_by: {
-        external_urls: {
-            spotify: string;
-        };
-        href: string;
-        id: string;
-        type: "user";
-        uri: string;
-    };
-    is_local: false;
-    track: {
-        album: {
-            album_type: "compilation";
-            total_tracks: number;
-            available_markets: ["CA", "BR", "IT"];
-            external_urls: {
-                spotify: string;
-            };
-            href: string;
-            id: string;
-            images: [
-                {
-                    url: string;
-                    height: number;
-                    width: number;
-                }
-            ];
-            name: string;
-            release_date: "1981-12";
-            release_date_precision: "year";
-            restrictions: {
-                reason: "market";
-            };
-            type: "album";
-            uri: "spotify:album:2up3OPMp9Tb4dAKM2erWXQ";
-            artists: [
-                {
-                    external_urls: {
-                        spotify: string;
-                    };
-                    href: string;
-                    id: string;
-                    name: string;
-                    type: "artist";
-                    uri: string;
-                }
-            ];
-        };
-        artists: [
-            {
-                external_urls: {
-                    spotify: string;
-                };
-                href: string;
-                id: string;
-                name: string;
-                type: "artist";
-                uri: string;
-            }
-        ];
-        available_markets: [string];
-        disc_number: number;
-        duration_ms: number;
-        explicit: false;
-        external_ids: {
-            isrc: string;
-            ean: string;
-            upc: string;
-        };
-        external_urls: {
-            spotify: string;
-        };
-        href: string;
-        id: string;
-        is_playable: false;
-        linked_from: {};
-        restrictions: {
-            reason: string;
-        };
-        name: string;
-        popularity: number;
-        preview_url: string;
-        track_number: number;
-        type: "track";
-        uri: string;
-        is_local: false;
-    };
-};
+export const TrackLightSchema = z.object({
+    added_at: z.string(),
+    added_by: z.object({
+        id: z.string(),
+    }),
+    item: z.object({
+        id: z.string(),
+        album: z.object({
+            images: z.array(
+                z.object({
+                    url: z.url(),
+                    height: z.number(),
+                    width: z.number(),
+                }),
+            ),
+        }),
+        external_urls: z.object({
+            spotify: z.url(),
+        }),
+        duration_ms: z.number(),
+        name: z.string(),
+        artists: z.array(
+            z.object({
+                external_urls: z.object({
+                    spotify: z.url(),
+                }),
+                name: z.string(),
+            }),
+        ),
+    }),
+});
+
+export type TrackLight = z.infer<typeof TrackLightSchema>;

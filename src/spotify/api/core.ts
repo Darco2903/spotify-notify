@@ -1,39 +1,98 @@
-import type { Token } from "./types/index.js";
-import config from "../../../config.json" with { type: "json" };
+import fs from "fs";
+import type { ZodType } from "zod";
+import { err, ResultAsync } from "neverthrow";
+import { Second } from "@darco2903/secondthought";
+import { ExpiryCacheSafeAsync } from "@darco2903/expiry-cache";
+import { RawTokenSchema, type Token } from "./types/index.js";
+import { config } from "../../config.js";
+import { safeFetch, safeParse } from "../../utils.js";
 
 export const API_ORIGIN = "https://api.spotify.com/v1";
 
-let token: string | null = null;
-let tokenExpiry: number | null = null;
+const initToken: Token = {
+    accessToken: "",
+    expiresIn: new Second(0),
+    refreshToken: fs.readFileSync(config.spotify.refreshTokenPath, "utf-8").trim(),
+};
 
-async function fetchToken(): Promise<Token> {
-    const response = await fetch("https://accounts.spotify.com/api/token", {
+const tokenCache = new ExpiryCacheSafeAsync(initToken, fetchToken);
+tokenCache.expire(); // Expire immediately to force refresh on first use
+
+export type ApiFetchError = "TOKEN_REFRESH_FAILED" | "FAILED_TO_FETCH" | "FAILED_TO_PARSE_JSON" | "SCHEMA_MISMATCH";
+
+function fetchToken(): ResultAsync<Token, void> {
+    return safeFetch("https://accounts.spotify.com/api/token", {
         method: "POST",
         headers: {
             "Content-Type": "application/x-www-form-urlencoded",
         },
         body: new URLSearchParams({
-            grant_type: "client_credentials",
-            client_id: config.spotify.clientID,
-            client_secret: config.spotify.clientSecret,
+            grant_type: "refresh_token",
+            refresh_token: tokenCache.getRawData().refreshToken,
+            client_id: config.spotify.clientId,
         }),
-    });
-    const data: Token = await response.json();
-    // console.log("Token fetched:", data);
-    return data;
+    })
+        .andThen((res) =>
+            ResultAsync.fromPromise(
+                //
+                res.json(),
+                (error) => {
+                    console.error("Failed to parse token response as JSON:", error);
+                },
+            ),
+        )
+        .andThen((json) =>
+            safeParse(RawTokenSchema, json)
+                .map(
+                    (rawToken) =>
+                        ({
+                            accessToken: rawToken.access_token,
+                            expiresIn: new Second(rawToken.expires_in),
+                            refreshToken: rawToken.refresh_token,
+                        }) satisfies Token,
+                )
+                .mapErr((e) => {
+                    console.error("Failed to parse token with schema:", e);
+                }),
+        )
+        .andTee((token) => {
+            return ResultAsync.fromPromise(
+                //
+                fs.promises.writeFile(config.spotify.refreshTokenPath, token.refreshToken, "utf-8"),
+                (error) => {
+                    console.error("Failed to write refresh token to file:", error);
+                },
+            );
+        });
 }
 
-export async function apiFetch(endpoint: string): Promise<any> {
-    if (!token || !tokenExpiry || Date.now() > tokenExpiry) {
-        const t = await fetchToken();
-        token = t.access_token;
-        tokenExpiry = Date.now() + (t.expires_in - 60 * 1000); // Set expiry to 1 minute before actual expiry
-    }
+export function apiFetchRaw(endpoint: string): ResultAsync<any, ApiFetchError> {
+    return tokenCache
+        .getDataOrRefresh()
+        .orElse(() => err("TOKEN_REFRESH_FAILED"))
+        .andThen((token) =>
+            safeFetch(API_ORIGIN + endpoint, {
+                headers: {
+                    Authorization: `Bearer ${token.accessToken}`,
+                },
+            }).orElse(() => err("FAILED_TO_FETCH")),
+        )
+        .andThen((res) =>
+            ResultAsync.fromPromise(
+                //
+                res.json(),
+                (e) => {
+                    console.error("Failed to parse API response as JSON:", e);
+                },
+            ).orElse(() => err("FAILED_TO_PARSE_JSON")),
+        );
+}
 
-    const response = await fetch(API_ORIGIN + endpoint, {
-        headers: {
-            Authorization: `Bearer ${token}`,
-        },
-    });
-    return response.json();
+export function apiFetch<T>(endpoint: string, schema: ZodType<T>): ResultAsync<T, ApiFetchError> {
+    return apiFetchRaw(endpoint).andThen((json) =>
+        safeParse(schema, json).orElse((e) => {
+            console.error("API response did not match expected schema:", e);
+            return err("SCHEMA_MISMATCH");
+        }),
+    );
 }

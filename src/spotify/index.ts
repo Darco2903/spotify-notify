@@ -6,23 +6,22 @@ import { fetchPlaylist, fetchUser } from "./api/endpoints.js";
 import { Cache } from "./entries/cache.js";
 import { createLink, formatTime, wait } from "../utils.js";
 import type { PlaylistLight, TrackLight, User } from "./api/types/index.js";
-
-import config from "../../config.json" with { type: "json" };
+import { config } from "../config.js";
 
 const cache = new Cache();
 const INTERVAL = config.spotify.checkInterval * 1000; // Convert seconds to milliseconds
 
 function getPlaylistConfig(playlistId: string) {
-    return config.spotify.playlists.find((p) => p.playlistID === playlistId) || null;
+    return config.spotify.playlists.find((p) => p.playlistId === playlistId) || null;
 }
 
 function createEmbed(track: TrackLight, position: number, user: User | null): APIEmbed {
     return {
-        title: track.track.name,
-        description: track.track.artists.map((artist) => createLink(artist.name, artist.external_urls.spotify)).join(" - "),
+        title: track.item.name,
+        description: track.item.artists.map((artist) => createLink(artist.name, artist.external_urls.spotify)).join(" - "),
         author: {
             name: user?.display_name || "Unknown",
-            icon_url: user?.images[0]?.url,
+            // icon_url: user?.images[0]?.url,
             url: user?.external_urls.spotify,
         },
         fields: [
@@ -33,7 +32,7 @@ function createEmbed(track: TrackLight, position: number, user: User | null): AP
             },
             {
                 name: "Duration",
-                value: formatTime(track.track.duration_ms / 1000),
+                value: formatTime(track.item.duration_ms / 1000),
                 inline: true,
             },
             {
@@ -42,10 +41,10 @@ function createEmbed(track: TrackLight, position: number, user: User | null): AP
                 inline: true,
             },
         ],
-        url: track.track.external_urls.spotify,
+        url: track.item.external_urls.spotify,
         color: 0x1db954, // Spotify green
         image: {
-            url: track.track.album.images[0].url,
+            url: track.item.album.images[0].url,
         },
         provider: {
             name: "Spotify",
@@ -63,12 +62,12 @@ function createTrackMessage(channel: SendableChannels, tracks_chunk: [TrackLight
 
 async function getUserWithCache(userId: string, cache: Map<string, User>): Promise<User | null> {
     let user = cache.get(userId);
-    if (!user) {
-        user = await fetchUser(userId);
-        if (!user) {
-            return null;
-        }
-        cache.set(userId, user);
+    if (user === undefined) {
+        return fetchUser(userId)
+            .andTee((user) => {
+                cache.set(userId, user);
+            })
+            .unwrapOr(null);
     }
     return user;
 }
@@ -84,10 +83,10 @@ async function createUserList(track_chunk: [TrackLight, number][], userCache: Ma
 
 async function notifyTracks(channel: SendableChannels, track_chunk: [TrackLight, number][], userCache: Map<string, User>) {
     const users = await createUserList(track_chunk, userCache);
-    if (users.some((user) => !user)) {
-        logWarning("One or more users not found.");
-        // return;
-    }
+    // if (users.some((user) => user === null)) {
+    //     logWarning("One or more users not found.");
+    //     // return;
+    // }
 
     const message = createTrackMessage(channel, track_chunk, users);
     await channel.send(message);
@@ -106,7 +105,7 @@ function createNotificationMessage(playlist: PlaylistLight, lastTrack: TrackLigh
         fields: [
             {
                 name: "Total",
-                value: playlist.tracks.total.toString(),
+                value: playlist.items.total.toString(),
                 inline: true,
             },
             {
@@ -121,19 +120,19 @@ function createNotificationMessage(playlist: PlaylistLight, lastTrack: TrackLigh
 async function notify(client: ClientWrapper<true>, playlistId: string, tracks: [TrackLight, number][]) {
     const playlistConfig = getPlaylistConfig(playlistId);
     if (!playlistConfig) {
-        logError(`Playlist configuration not found for ID: ${playlistId}`);
+        logError(`Playlist configuration not found for Id: ${playlistId}`);
         return;
     }
 
     const entry = cache.get(playlistId);
     if (!entry) {
-        logError(`No cached data found for playlist ID: ${playlistId}`);
+        logError(`No cached data found for playlist Id: ${playlistId}`);
         return;
     }
 
-    const channel = client.channels.cache.get(playlistConfig.channelID);
+    const channel = client.channels.cache.get(playlistConfig.channelId);
     if (!channel?.isSendable()) {
-        logError(`Channel ${playlistConfig.channelID} is not sendable or does not exist.`);
+        logError(`Channel ${playlistConfig.channelId} is not sendable or does not exist.`);
         return;
     }
 
@@ -142,7 +141,7 @@ async function notify(client: ClientWrapper<true>, playlistId: string, tracks: [
 
     let mention = "";
     if (!channel.isDMBased()) {
-        const role = channel.guild.roles.cache.get(playlistConfig.roleID);
+        const role = channel.guild.roles.cache.get(playlistConfig.roleId);
         if (role) {
             mention = ` <@&${role.id}>`;
         }
@@ -175,14 +174,15 @@ function checkSnapshot(playlist: PlaylistLight): number {
 
 async function updatePlaylist(playlist: PlaylistLight): Promise<[TrackLight, number][]> {
     const entry = await cache.update(playlist);
-    if (entry) {
+    if (entry.isOk() && entry.value !== null) {
         // check diffs
-        const diff = entry.checkDiff();
+        const diff = entry.value.checkDiff();
         logInfo(`Found ${diff.length.toString().yellow} new tracks`);
 
-        await entry.save().catch(logError);
+        await entry.value.save().catch(logError);
         return diff;
     }
+    console.log("END");
     return [];
 }
 
@@ -214,17 +214,16 @@ async function checkForUpdates(client: ClientWrapper<true>) {
             continue;
         }
 
-        logStart(playlistConfig.playlistID.magenta);
-        const playlist = await fetchPlaylist(playlistConfig.playlistID).catch((error) => {
-            logNewLine();
-            logError(`Failed to fetch playlist ${playlistConfig.playlistID}: ${error}`);
-            return null;
-        });
+        logStart(playlistConfig.playlistId.magenta);
+        const playlistRes = await fetchPlaylist(playlistConfig.playlistId);
 
-        if (!playlist) {
+        if (playlistRes.isErr()) {
+            logNewLine();
+            logError(`Failed to fetch playlist ${playlistConfig.playlistId}: ${playlistRes.error}`);
             continue;
         }
 
+        const playlist = playlistRes.value;
         log(` (${playlist.name})`.cyan);
 
         const check = checkSnapshot(playlist);
@@ -269,29 +268,29 @@ export async function main(client: ClientWrapper<true>) {
         type: ActivityType.Custom,
     });
 
-    for (const { channelID, playlistID, enabled } of config.spotify.playlists) {
+    for (const { channelId, playlistId, enabled } of config.spotify.playlists) {
         if (enabled === false) {
             continue;
         }
 
-        logStart(playlistID.magenta);
-        const playlist = await fetchPlaylist(playlistID).catch((error) => {
-            logNewLine();
-            logError(`Failed to fetch playlist ${playlistID}: ${error}`);
-        });
+        logStart(playlistId.magenta);
+        const playlistRes = await fetchPlaylist(playlistId);
 
-        if (!playlist) {
+        if (playlistRes.isErr()) {
+            logNewLine();
+            logError(`Failed to fetch playlist ${playlistId}: ${playlistRes.error}`);
             continue;
         }
 
+        const playlist = playlistRes.value;
         log(` (${playlist.name})`.cyan);
 
-        if (await cache.load(channelID, playlistID)) {
+        if (await cache.load(channelId, playlistId)) {
             // CacheEntry found -> if snapshot changed -> update the cache
             if (isSnapshotUpdated(playlist)) {
                 log(" -> Snapshot changed, updating cache\n".yellow);
                 const diff = await updatePlaylist(playlist).catch((error) => {
-                    logError(`Failed to update playlist ${playlistID}: ${error}`);
+                    logError(`Failed to update playlist ${playlistId}: ${error}`);
                     return [];
                 });
 
@@ -306,8 +305,9 @@ export async function main(client: ClientWrapper<true>) {
         } else {
             // CacheEntry not found
             log(" -> No cache entry found, creating new entry\n".yellow);
-            const entry = await cache.set(channelID, playlist);
-            await entry.save().catch(logError);
+            cache.set(channelId, playlist).andTee(async (entry) => {
+                await entry.save().catch(logError);
+            });
         }
     }
 
