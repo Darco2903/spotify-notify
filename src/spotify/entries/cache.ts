@@ -15,8 +15,11 @@ export class Cache {
     async load(channelId: string, playlistId: string): Promise<boolean> {
         const entry = await CacheEntry.loadFromFile(channelId, playlistId);
         // console.log("CacheEntry loaded:", !!entry);
-        if (entry) {
-            this.cache.set(playlistId, entry);
+        if (entry.isErr()) {
+            console.error(`\nError loading cache for playlist ${playlistId}:`, entry.error);
+            process.exit(1);
+        } else if (entry.value !== null) {
+            this.cache.set(playlistId, entry.value);
             return true;
         }
         return false;

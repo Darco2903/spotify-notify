@@ -1,9 +1,9 @@
-import { ok, okAsync, type Result, ResultAsync } from "neverthrow";
+import { okAsync, type Result, ResultAsync } from "neverthrow";
 import { API_ORIGIN, apiFetch, type ApiFetchError } from "./core.js";
 import {
     PlaylistItemsLightSchema,
     PlaylistLightSchema,
-    UserSchema,
+    // UserSchema,
     type PlaylistLight,
     type PlaylistItemsLight,
     type TrackLight,

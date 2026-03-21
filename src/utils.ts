@@ -2,7 +2,7 @@ import fs from "fs";
 import path from "path";
 import { fileURLToPath } from "url";
 import type { ZodError, ZodType } from "zod";
-import { err, ok, ResultAsync, type Result } from "neverthrow";
+import { err, ok, Result, ResultAsync } from "neverthrow";
 import type { Time } from "@darco2903/secondthought";
 
 const __filename = fileURLToPath(import.meta.url);
@@ -47,6 +47,12 @@ export function safeFetch(input: string | URL | Request, init?: RequestInit | un
         },
     );
 }
+
+export const safeJSONParse = Result.fromThrowable(
+    //
+    JSON.parse,
+    (error) => {},
+);
 
 export function safeParse<T>(schema: ZodType<T>, data: any): Result<T, ZodError> {
     const parseResult = schema.safeParse(data);

@@ -1,11 +1,11 @@
 import { ActivityType, MessagePayload } from "discord.js";
 import type { APIEmbed, SendableChannels } from "discord.js";
 import ClientWrapper from "../wrapper.js";
-import { log, logError, logInfo, logNewLine, logStart, logWarning } from "../logger.js";
+import { log, logError, logInfo, logNewLine, logStart } from "../logger.js";
 import { fetchPlaylist, fetchUser } from "./api/endpoints.js";
 import { Cache } from "./entries/cache.js";
 import { createLink, formatTime, wait } from "../utils.js";
-import type { PlaylistLight, TrackLight, User } from "./api/types/index.js";
+import type { PlaylistCache, PlaylistLight, TrackLight, User } from "./api/types/index.js";
 import { config } from "../config.js";
 
 const cache = new Cache();
@@ -93,7 +93,7 @@ async function notifyTracks(channel: SendableChannels, track_chunk: [TrackLight,
     // logInfo(`Notification sent for playlist ${cached.getName()} (${playlistId})`);
 }
 
-function createNotificationMessage(playlist: PlaylistLight, lastTrack: TrackLight): APIEmbed {
+function createNotificationMessage(playlist: PlaylistCache, lastTrack: TrackLight): APIEmbed {
     return {
         title: `**${playlist.name}**`,
         description: playlist.description || "*No description*",
@@ -182,7 +182,6 @@ async function updatePlaylist(playlist: PlaylistLight): Promise<[TrackLight, num
         await entry.value.save().catch(logError);
         return diff;
     }
-    console.log("END");
     return [];
 }
 

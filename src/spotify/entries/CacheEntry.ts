@@ -1,14 +1,15 @@
 import fs from "fs";
 import path from "path";
-import { exists } from "../../utils.js";
-import type { PlaylistLight, TrackLight } from "../api/types/index.js";
-
+import { exists, safeJSONParse, safeParse } from "../../utils.js";
+import { CacheDataSchema, type CacheData } from "./types/cache.js";
+import type { PlaylistCache, TrackLight } from "../api/types/index.js";
 import { config } from "../../config.js";
+import { ok, ResultAsync } from "neverthrow";
 
 export class CacheEntry {
     protected channelId: string;
-    protected playlist: PlaylistLight;
-    protected lastPlaylist: PlaylistLight;
+    protected playlist: PlaylistCache;
+    protected lastPlaylist: PlaylistCache;
     protected tracks: TrackLight[];
     protected lastTracks: TrackLight[];
     protected lastSnapshotId: string;
@@ -18,18 +19,31 @@ export class CacheEntry {
         return path.join(config.cache.path, `${playlistId}.json`);
     }
 
-    static async loadFromFile(channelId: string, playlistId: string): Promise<CacheEntry | null> {
+    static loadFromFile(channelId: string, playlistId: string): ResultAsync<CacheEntry | null, string> {
         const filePath = CacheEntry.getFilePath(playlistId);
-        let entry = null;
-        if (await exists(filePath)) {
-            const data = await fs.promises.readFile(filePath, "utf-8");
-            const parsed = JSON.parse(data);
-            entry = new CacheEntry(channelId, parsed.playlist, parsed.tracks);
-        }
-        return entry;
+        return ResultAsync.fromSafePromise(
+            //
+            exists(filePath),
+        ).andThen((exists) => {
+            if (exists) {
+                return ResultAsync.fromPromise(
+                    //
+                    fs.promises.readFile(filePath, "utf-8"),
+                    (e) => `Failed to read cache file: ${e}`,
+                )
+                    .andThen((data) => safeJSONParse(data))
+                    .mapErr((e) => `Failed to parse JSON from cache file: ${e}`)
+                    .andThen((json) =>
+                        safeParse(CacheDataSchema, json)
+                            .map((parsed) => new CacheEntry(channelId, parsed.playlist, parsed.items))
+                            .mapErr((error) => `Error parsing cache data for playlist ${playlistId}: ${error.message}`),
+                    );
+            }
+            return ok(null);
+        });
     }
 
-    constructor(channelId: string, playlist: PlaylistLight, tracks: TrackLight[]) {
+    constructor(channelId: string, playlist: PlaylistCache, tracks: TrackLight[]) {
         this.channelId = channelId;
         this.playlist = playlist;
         this.lastPlaylist = playlist;
@@ -39,7 +53,7 @@ export class CacheEntry {
         this.snapshotIdle = -1;
     }
 
-    update(playlist: PlaylistLight, tracks: TrackLight[]): void {
+    update(playlist: PlaylistCache, tracks: TrackLight[]): void {
         this.lastPlaylist = this.playlist;
         this.playlist = playlist;
         this.lastTracks = this.tracks;
@@ -52,7 +66,7 @@ export class CacheEntry {
         return this.playlist.id;
     }
 
-    getPlaylist(): PlaylistLight {
+    getPlaylist(): PlaylistCache {
         return this.playlist;
     }
 
@@ -80,8 +94,8 @@ export class CacheEntry {
         // console.log(`Saving cache entry for playlist ${this.getId()}`);
         const data = JSON.stringify({
             playlist: this.playlist,
-            tracks: this.tracks,
-        });
+            items: this.tracks,
+        } satisfies CacheData);
         const filePath = CacheEntry.getFilePath(this.getId());
         // console.log(`Saving cache entry for playlist ${this.getId()} to ${filePath}`);
         await fs.promises.mkdir(path.dirname(filePath), { recursive: true });
