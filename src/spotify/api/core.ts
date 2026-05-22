@@ -87,10 +87,15 @@ export function apiFetchRaw(endpoint: string): ResultAsync<any, ApiFetchError> {
                     },
                 ).orElse(() => err("FAILED_TO_PARSE_JSON"));
             } else {
-                console.error(`\nAPI request to ${endpoint} failed with status ${res.status}: ${res.statusText}`);
-                console.error("Response body:", res.text ? res.text() : "<no body>");
-                console.error("Response headers:", res.headers ? res.headers : "<no headers>");
-                return err("FAILED_TO_FETCH");
+                return ResultAsync.fromSafePromise(
+                    //
+                    res.text().catch((e) => "<failed to read body: " + e + ">"),
+                ).andThen((text) => {
+                    console.error(`\nAPI request to ${endpoint} failed with status ${res.status}: ${res.statusText}`);
+                    console.error("Response body:", text);
+                    console.error("Response headers:", res.headers ? res.headers : "<no headers>");
+                    return err("FAILED_TO_FETCH");
+                });
             }
         });
 }
