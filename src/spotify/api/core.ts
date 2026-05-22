@@ -77,15 +77,22 @@ export function apiFetchRaw(endpoint: string): ResultAsync<any, ApiFetchError> {
                 },
             }).orElse(() => err("FAILED_TO_FETCH")),
         )
-        .andThen((res) =>
-            ResultAsync.fromPromise(
-                //
-                res.json(),
-                (e) => {
-                    console.error("Failed to parse API response as JSON:", e);
-                },
-            ).orElse(() => err("FAILED_TO_PARSE_JSON")),
-        );
+        .andThen((res) => {
+            if (res.ok) {
+                return ResultAsync.fromPromise(
+                    //
+                    res.json(),
+                    (e) => {
+                        console.error("Failed to parse API response as JSON:", e);
+                    },
+                ).orElse(() => err("FAILED_TO_PARSE_JSON"));
+            } else {
+                console.error(`\nAPI request to ${endpoint} failed with status ${res.status}: ${res.statusText}`);
+                console.error("Response body:", res.text ? res.text() : "<no body>");
+                console.error("Response headers:", res.headers ? res.headers : "<no headers>");
+                return err("FAILED_TO_FETCH");
+            }
+        });
 }
 
 export function apiFetch<T>(endpoint: string, schema: ZodType<T>): ResultAsync<T, ApiFetchError> {

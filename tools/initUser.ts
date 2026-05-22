@@ -86,7 +86,25 @@ async function getStdin(): Promise<string> {
     //
 
     console.log("Waiting for authorization code...");
-    const code = await getStdin();
+    const userInput = await getStdin();
+
+    if (!userInput) {
+        console.error("No input received.");
+        return;
+    }
+
+    let code: string | null = null;
+    try {
+        const url = new URL(userInput);
+        code = url.searchParams.get("code");
+
+        if (code === null) {
+            console.error("No code parameter found in the URL.");
+            return;
+        }
+    } catch (error) {
+        code = userInput; // Assume the user entered the code directly
+    }
 
     console.log();
 
