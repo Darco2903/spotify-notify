@@ -1,0 +1,14 @@
+services:
+  spotify-notify:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    image: spotify-notify:latest
+    container_name: spotify-notify
+    restart: unless-stopped
+    volumes:
+      - ./config.json:/app/config.json:ro
+      - ./refresh_token.txt:/app/refresh_token.txt:rw
+      - cache:/app/cache
+volumes:
+  cache:
