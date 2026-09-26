@@ -1,8 +1,8 @@
 import z from "zod";
 import crypto from "crypto";
-import { config } from "../src/config.js";
+import { config } from "../config.js";
 import { err, ResultAsync } from "neverthrow";
-import { safeFetch, safeParse } from "../src/utils.js";
+import { safeFetch, safeParse } from "../utils.js";
 
 const REDIRECT_URI = "http://127.0.0.1:3000";
 

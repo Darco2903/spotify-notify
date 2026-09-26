@@ -6,7 +6,7 @@ export const RawTokenSchema = z.object({
     token_type: z.string(),
     /** The number of seconds until the token expires */
     expires_in: z.number(),
-    refresh_token: z.string(),
+    refresh_token: z.string().optional(),
 });
 
 export type RawToken = z.infer<typeof RawTokenSchema>;

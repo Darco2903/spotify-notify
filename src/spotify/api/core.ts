@@ -48,7 +48,7 @@ function fetchToken(): ResultAsync<Token, void> {
                         ({
                             accessToken: rawToken.access_token,
                             expiresIn: new Second(rawToken.expires_in),
-                            refreshToken: rawToken.refresh_token,
+                            refreshToken: rawToken.refresh_token || tokenCache.getRawData().refreshToken, // Use existing refresh token if not provided
                         }) satisfies Token,
                 )
                 .mapErr((e) => {

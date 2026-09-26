@@ -11,8 +11,8 @@ export const PlaylistBaseSchema = z.object({
     images: z.array(
         z.object({
             url: z.url(),
-            height: z.number(),
-            width: z.number(),
+            height: z.number().nullable(),
+            width: z.number().nullable(),
         }),
     ),
     snapshot_id: z.string(),

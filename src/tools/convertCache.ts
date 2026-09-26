@@ -1,12 +1,12 @@
 import z from "zod";
 import fs from "fs";
 import path from "path";
-import type { CacheData } from "../src/spotify/entries/types/cache.js";
-import { config } from "../src/config.js";
-import { safeParse } from "../src/utils.js";
-import { TrackLight } from "../src/spotify/api/types/Track.js";
-import { PlaylistItemsLightSchema } from "../src/spotify/api/types/PlaylistItems.js";
-import { PlaylistBaseSchema, PlaylistCache } from "../src/spotify/api/types/Playlist.js";
+import type { CacheData } from "../spotify/entries/types/cache.js";
+import { config } from "../config.js";
+import { safeParse } from "../utils.js";
+import { TrackLight } from "../spotify/api/types/Track.js";
+import { PlaylistItemsLightSchema } from "../spotify/api/types/PlaylistItems.js";
+import { PlaylistBaseSchema, PlaylistCache } from "../spotify/api/types/Playlist.js";
 
 const TrackLightSchemaOld = z.object({
     added_at: z.string(),

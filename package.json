@@ -15,8 +15,8 @@
         "dev": "tsx src/index.ts",
         "clean": "rimraf dist",
         "test": "vitest",
-        "init:user": "tsx tools/initUser.ts",
-        "convert:cache": "tsx tools/convertCache.ts"
+        "init:user": "node dist/tools/initUser.js",
+        "convert:cache": "node dist/tools/convertCache.js"
     },
     "dependencies": {
         "@darco2903/expiry-cache": "^3.0.1",
