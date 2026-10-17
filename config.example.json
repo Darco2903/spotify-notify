@@ -1,0 +1,24 @@
+{
+    "cache": {
+        "path": "./cache"
+    },
+    "discord": {
+        "clientId": "DISCORD_CLIENT_ID",
+        "token": "DISCORD_BOT_TOKEN"
+    },
+    "spotify": {
+        "clientId": "SPOTIFY_CLIENT_ID",
+        "refreshTokenPath": "./refresh_token.txt",
+        "playlists": [
+            {
+                "name": "PLAYLIST_NAME",
+                "enabled": true,
+                "playlistId": "PLAYLIST_ID",
+                "channelId": "DISCORD_CHANNEL_ID",
+                "roleId": "DISCORD_ROLE_ID"
+            }
+        ],
+        "checkInterval": 300,
+        "idleTimes": 3
+    }
+}
