@@ -34,14 +34,8 @@ jobs:
                   node-version: ${{ env.NODE_VERSION }}
                   cache: "pnpm"
 
-            # - name: Install ffmpeg
-            #   run: sudo apt-get update && sudo apt-get install -y ffmpeg
-
             - name: Install dependencies
               run: pnpm install --frozen-lockfile
-
-            - name: Build Prisma
-              run: pnpm build:db
 
             - name: Typecheck
               run: pnpm check
