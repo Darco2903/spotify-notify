@@ -1,8 +1,8 @@
 FROM ghcr.io/pnpm/pnpm:latest AS base
 ENV CI=true
-RUN pnpm runtime set node 20 -g
+RUN pnpm runtime set node 24 -g
 WORKDIR /app
-COPY package.json pnpm-lock.yaml ./
+COPY package.json pnpm-lock.yaml pnpm-workspace.yaml /app/
 
 FROM base AS prod-deps
 RUN --mount=type=cache,id=pnpm,target=/pnpm/store pnpm install --prod --frozen-lockfile
@@ -10,15 +10,15 @@ RUN --mount=type=cache,id=pnpm,target=/pnpm/store pnpm install --prod --frozen-l
 FROM base AS build
 RUN --mount=type=cache,id=pnpm,target=/pnpm/store pnpm install --frozen-lockfile
 COPY src/ /app/src/
-COPY tsconfig.json ./
+COPY tsconfig.json /app/
 RUN pnpm build
 
-FROM node:20-alpine AS runtime
+FROM node:24-slim AS runtime
+WORKDIR /app
 # node_modules
 COPY --from=prod-deps /app/node_modules /app/node_modules
 # dist
 COPY --from=build /app/dist /app/dist
 COPY --from=build /app/package.json /app/
-WORKDIR /app
 
 CMD ["node", "."]
