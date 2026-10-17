@@ -1,0 +1,50 @@
+name: Check
+
+on:
+    push:
+        branches:
+            - "dev"
+    pull_request:
+        branches:
+            - "main"
+
+# A new push cancels the previous run of the same branch
+concurrency:
+    group: ci-${{ github.ref }}
+    cancel-in-progress: true
+
+permissions:
+    contents: read
+
+env:
+    NODE_VERSION: 24
+
+jobs:
+    ci:
+        runs-on: ubuntu-latest
+        timeout-minutes: 10
+
+        steps:
+            - uses: actions/checkout@v5
+
+            - uses: pnpm/action-setup@v4
+
+            - uses: actions/setup-node@v4
+              with:
+                  node-version: ${{ env.NODE_VERSION }}
+                  cache: "pnpm"
+
+            # - name: Install ffmpeg
+            #   run: sudo apt-get update && sudo apt-get install -y ffmpeg
+
+            - name: Install dependencies
+              run: pnpm install --frozen-lockfile
+
+            - name: Build Prisma
+              run: pnpm build:db
+
+            - name: Typecheck
+              run: pnpm check
+
+            - name: Test
+              run: pnpm test
