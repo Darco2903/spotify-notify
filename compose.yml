@@ -1,3 +1,4 @@
+name: spotify-notify
 services:
   spotify-notify:
     build:
