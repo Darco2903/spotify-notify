@@ -1,44 +1,46 @@
 name: Check
 
 on:
+    # tags are checked by publish.yml before building the image
     push:
-        branches:
-            - "dev"
-    pull_request:
-        branches:
-            - "main"
+        branches: ["**"]
+        # skipped only when every changed file matches; workflow_call ignores this
+        paths-ignore:
+            - "**.md"
+            - LICENSE
+            - compose.yml
+            - Dockerfile
+            - .dockerignore
+            - .env.example
+            - .gitignore
+            - .gitattributes
+            - .github/workflows/publish.yml
+    workflow_call:
+    workflow_dispatch:
 
-# A new push cancels the previous run of the same branch
+# a newer push on the same branch cancels the running check
 concurrency:
-    group: ci-${{ github.ref }}
+    group: ${{ github.workflow }}-${{ github.ref }}
     cancel-in-progress: true
 
-permissions:
-    contents: read
-
-env:
-    NODE_VERSION: 24
-
 jobs:
-    ci:
+    check:
         runs-on: ubuntu-latest
-        timeout-minutes: 10
-
+        permissions:
+            contents: read
         steps:
-            - uses: actions/checkout@v5
+            - uses: actions/checkout@v7
 
-            - uses: pnpm/action-setup@v4
+            # version comes from packageManager in package.json
+            - uses: pnpm/action-setup@v6
 
-            - uses: actions/setup-node@v4
+            - uses: actions/setup-node@v7
               with:
-                  node-version: ${{ env.NODE_VERSION }}
-                  cache: "pnpm"
+                  node-version: 24
+                  cache: pnpm
 
-            - name: Install dependencies
-              run: pnpm install --frozen-lockfile
+            - run: pnpm install --frozen-lockfile
 
-            - name: Typecheck
-              run: pnpm check
+            - run: pnpm check
 
-            - name: Test
-              run: pnpm test
+            - run: pnpm test

@@ -1,10 +1,8 @@
 name: spotify-notify
 services:
   spotify-notify:
-    build:
-      context: .
-      dockerfile: Dockerfile
-    image: spotify-notify:latest
+    build: .
+    image: darco2903/spotify-notify:latest
     container_name: spotify-notify
     restart: unless-stopped
     volumes:
