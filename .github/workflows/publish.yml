@@ -1,53 +1,80 @@
 name: Publish image
 
 on:
-    push:
-        tags: ["v*"]
+  push:
+    tags: ["v*"]
 
 env:
-    IMAGE: docker.io/${{ vars.DOCKERHUB_USERNAME }}/spotify-notify
+  IMAGE: docker.io/${{ vars.DOCKERHUB_USERNAME }}/spotify-notify
 
 jobs:
-    check:
-        uses: ./.github/workflows/check.yml
-        permissions:
-            contents: read
+  check:
+    uses: ./.github/workflows/check.yml
+    permissions:
+      contents: read
 
-    build:
-        needs: check
-        runs-on: ubuntu-latest
-        permissions:
-            contents: read
-        steps:
-            - uses: actions/checkout@v7
+  build:
+    needs: check
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+    steps:
+      - uses: actions/checkout@v7
 
-            - uses: docker/setup-qemu-action@v4
+      - uses: docker/setup-qemu-action@v4
 
-            - uses: docker/setup-buildx-action@v4
+      - uses: docker/setup-buildx-action@v4
 
-            - uses: docker/login-action@v4
-              with:
-                  username: ${{ vars.DOCKERHUB_USERNAME }}
-                  password: ${{ secrets.DOCKERHUB_TOKEN }}
+      - uses: docker/login-action@v4
+        with:
+          username: ${{ vars.DOCKERHUB_USERNAME }}
+          password: ${{ secrets.DOCKERHUB_TOKEN }}
 
-            # 1.2.3 / 1.2 / 1 on v1.2.3 tags, sha-<short> on every build
-            # latest is added automatically on the newest non-prerelease semver tag
-            - id: meta
-              uses: docker/metadata-action@v6
-              with:
-                  images: ${{ env.IMAGE }}
-                  tags: |
-                      type=semver,pattern={{version}}
-                      type=semver,pattern={{major}}.{{minor}}
-                      type=semver,pattern={{major}}
-                      type=sha
+      # 1.2.3 / 1.2 / 1 on v1.2.3 tags, sha-<short> on every build
+      # latest is added automatically on the newest non-prerelease semver tag
+      - id: meta
+        uses: docker/metadata-action@v6
+        with:
+          images: ${{ env.IMAGE }}
+          tags: |
+            type=semver,pattern={{version}}
+            type=semver,pattern={{major}}.{{minor}}
+            type=semver,pattern={{major}}
+            type=sha
 
-            - uses: docker/build-push-action@v7
-              with:
-                  context: .
-                  platforms: linux/amd64,linux/arm64
-                  push: true
-                  tags: ${{ steps.meta.outputs.tags }}
-                  labels: ${{ steps.meta.outputs.labels }}
-                  cache-from: type=gha
-                  cache-to: type=gha,mode=max
+      - uses: docker/build-push-action@v7
+        with:
+          context: .
+          platforms: linux/amd64,linux/arm64
+          push: true
+          tags: ${{ steps.meta.outputs.tags }}
+          labels: ${{ steps.meta.outputs.labels }}
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
+
+  deploy:
+    needs: build
+    runs-on: ubuntu-latest
+    permissions: {}
+    steps:
+      - name: Install cloudflared
+        run: |
+          curl -fsSL -o cloudflared.deb https://github.com/cloudflare/cloudflared/releases/latest/download/cloudflared-linux-amd64.deb
+          sudo dpkg -i cloudflared.deb
+
+      - name: SSH key and pinned host key
+        env:
+          KEY: ${{ secrets.DEPLOY_SSH_KEY }}
+        run: |
+          mkdir -m 700 ~/.ssh
+          printf '%s\n' "$KEY" > ~/.ssh/id_ed25519
+          chmod 600 ~/.ssh/id_ed25519
+          # From the server: cat /etc/ssh/ssh_host_ed25519_key.pub
+          echo "ssh.darco2903.fr ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAIL2MKnVHBrf1RLwbGikOq5h1uIw9PJR6opJBRcFm7cQd root@ubuntu20-04" > ~/.ssh/known_hosts
+
+      # The forced command on the server does the deploy, nothing to send
+      - name: Deploy
+        run: |
+          ssh -T -o BatchMode=yes \
+            -o ProxyCommand="cloudflared access ssh --hostname %h" \
+            deploy@ssh.darco2903.fr
